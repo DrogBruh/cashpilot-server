@@ -13,56 +13,30 @@ app = Flask(__name__)
 @app.route("/credit-offers")
 def get_credit_offers():
     try:
-        # Настройка Selenium в headless-режиме
         chrome_options = Options()
         chrome_options.add_argument("--headless")
         chrome_options.add_argument("--no-sandbox")
         chrome_options.add_argument("--disable-dev-shm-usage")
-        chrome_options.binary_location = "/usr/bin/chromium"  # для Railway/хостинга
+        chrome_options.binary_location = "/usr/bin/chromium"
 
-        service = Service("/usr/bin/chromedriver")  # фиксированный путь
+        service = Service("/usr/bin/chromedriver")
 
         driver = webdriver.Chrome(service=service, options=chrome_options)
         driver.get("https://www.sberbank.com/ru/person/credits/money")
 
-        # Явное ожидание появления карточек
-        WebDriverWait(driver, 15).until(
-            EC.presence_of_all_elements_located((By.CLASS_NAME, "product-card__factoids"))
+        # Пробуем просто дождаться <body>
+        WebDriverWait(driver, 10).until(
+            EC.presence_of_element_located((By.TAG_NAME, "body"))
         )
 
-        # Получение всех карточек
-        factoids = driver.find_elements(By.CLASS_NAME, "product-card__factoids")
-
-        offers = []
-        for block in factoids:
-            facts = block.find_elements(By.CLASS_NAME, "factoid")
-            sum_text = ""
-            term_text = ""
-
-            for fact in facts:
-                description = fact.find_element(By.CLASS_NAME, "factoid__description").text.lower()
-                value = fact.find_element(By.CLASS_NAME, "dk-sbol-heading").text
-
-                if "срок" in description or "срок кредита" in description:
-                    term_text = value
-                elif "сумма" in description or "сумма кредита" in description:
-                    sum_text = value
-
-            if sum_text and term_text:
-                offers.append({
-                    "bankName": "Сбербанк",
-                    "percent": sum_text,
-                    "term": term_text
-                })
-
+        # Возвращаем HTML для анализа
+        html = driver.page_source
         driver.quit()
-        return jsonify(offers)
+
+        return html  # Тестово отдадим сырой HTML
 
     except Exception as e:
-        # Возвращаем трассировку ошибки
         error_trace = traceback.format_exc()
-        print("=== Ошибка парсинга ===")
-        print(error_trace)
         return jsonify({"error": error_trace}), 500
 
 if __name__ == "__main__":
